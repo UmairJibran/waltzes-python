@@ -21,26 +21,26 @@ def fetch_job_details(job_url):
     """
     if os.environ.get("INSTANT_API_KEY") is None:
         return None
-    url = "https://instantapi.ai/api/retrieve/"
+    url = "https://instantapi.ai/api/scrape/"
 
     payload = json.dumps(
         {
-            "webpage_url": job_url,
-            "api_method_name": "get_job_details",
-            "api_response_structure": json.dumps(
-                {
-                    "title": "<title of the job>",
-                    "description": "<complete description of the job>",
-                    "companyName": "<name of the company>",
-                    "skills": ["<list of skills required for this job>"],
-                }
-            ),
-            "api_key": os.environ.get("INSTANT_API_KEY"),
+            "url": job_url,
+            "fields": {
+                "title": "<title of the job>",
+                "description": "<complete description of the job>",
+                "companyName": "<name of the company>",
+                "skills": ["<list of skills required for this job>"],
+            },
         }
     )
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.environ.get('INSTANT_API_KEY')}",
+    }
 
     response = requests.request("POST", url, headers=headers, data=payload)
     response.raise_for_status()
 
-    return response.json()
+    response = response.json()
+    return response.get("scrape", {})
