@@ -4,8 +4,8 @@ import json
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from src.services.llm.openai import call_openai_api
-from src.services.llm.prompts import (
+from services.llm.openai import call_openai_api
+from services.llm.prompts import (
     system_prompt_resume_segmentation,
     user_prompt_for_resume_creation,
 )

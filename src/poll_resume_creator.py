@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 from aws.sqs import delete_message, fetch_messages
-from handlers.process_resume_creator import process_resume_creator_message
+from handlers.process_resume_creator import local_invoke as resume_invoke
 from utils.logger import logger
 
 load_dotenv(dotenv_path=".env", override=True)
@@ -17,14 +17,16 @@ def main():
     resume_creation_queue_url = os.getenv("RESUME_CREATOR_QUEUE_URL")
     while True:
         logger.info(f"Current Time: {datetime.datetime.now()}")
-        message = fetch_messages(resume_creation_queue_url)
+        messages = fetch_messages(resume_creation_queue_url)
         try:
-            if message:
-                process_resume_creator_message(message)
-                delete_message(
-                    queue_url=resume_creation_queue_url,
-                    receipt_handle=message.get("ReceiptHandle"),
-                )
+            for message in messages:
+                if message:
+                    message_body = message.get("Body")
+                    resume_invoke(message_body)
+                    delete_message(
+                        queue_url=resume_creation_queue_url,
+                        receipt_handle=message.get("ReceiptHandle"),
+                    )
         except Exception as e:
             logger.error(f"Error: {e}")
             continue

@@ -3,7 +3,7 @@
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from src.services.scrapers.job_scraper import fetch_job_details
+from services.scrapers.job_scraper import fetch_job_details
 from utils import logger
 from utils.utils import add_query_param, send_data_to_callback_url
 

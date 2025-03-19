@@ -3,7 +3,7 @@
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from src.services.scrapers.linkedin_scrapper import fetch_user_linkedin
+from services.scrapers.linkedin_scrapper import fetch_user_linkedin
 from utils import logger
 from utils.utils import send_data_to_callback_url
 
