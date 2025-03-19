@@ -7,6 +7,7 @@ provider:
   runtime: python3.12
   region: us-east-1
   memorySize: 256
+  stage: ${opt:stage, 'dev'}
   timeout: 300
   architecture: arm64 # defaults to x86_64
   environment:
@@ -41,35 +42,35 @@ resources:
     PDFProcessorQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: "${self:provider.stage == 'prod' ? '' : self:provider.stage + '-'}pdf-processor-queue.fifo"
+        QueueName: pdf-processor-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
     JobScraperQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: "${self:provider.stage == 'prod' ? '' : self:provider.stage + '-'}job-scraper-queue.fifo"
+        QueueName: job-scraper-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
     LinkedInScraperQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: "${self:provider.stage == 'prod' ? '' : self:provider.stage + '-'}linkedin-scraper-queue.fifo"
+        QueueName: linkedin-scraper-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
     ResumeCreatorQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: "${self:provider.stage == 'prod' ? '' : self:provider.stage + '-'}resume-creator-queue.fifo"
+        QueueName: resume-creator-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
     CoverLetterCreatorQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: "${self:provider.stage == 'prod' ? '' : self:provider.stage + '-'}cover-letter-creator-queue.fifo"
+        QueueName: cover-letter-creator-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
