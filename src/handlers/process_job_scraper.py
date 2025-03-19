@@ -22,7 +22,7 @@ class JobScraperHandler(BaseHandler):
         """
         logger.info(f"Processing job scraping request: {message_body}")
 
-        job_url = message_body.get("url")
+        job_url = message_body.get("jobUrl")
         callback_url = message_body.get("callbackUrl")
         if not job_url:
             raise ValueError("Job Url is required")
