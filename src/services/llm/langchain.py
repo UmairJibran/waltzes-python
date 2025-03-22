@@ -40,16 +40,16 @@ def call_groq_api(
     temperature=0.2,
     messages=[],
 ):
-    """Make a call to OpenAI API using langchain's interface.
+    """Make a call to Groq API using langchain's interface.
 
     Args:
         model (str): The model to use for generation
         max_tokens (int): Maximum number of tokens to generate
         temperature (float): Controls randomness in the response
-        messages (list): List of messages to send to OpenAI
+        messages (list): List of messages to send to Groq
 
     Returns:
-        str: The generated content from OpenAI
+        str: The generated content from Groq
     """
     llm_groq = ChatGroq(
         model=model,
