@@ -4,7 +4,7 @@ import json
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from services.llm.openai import call_openai_api
+from services.llm.langchain import call_openai_api
 from services.llm.prompts import (
     system_prompt_cover_letter_writer,
     user_prompt_for_cover_letter_creation,
@@ -98,7 +98,6 @@ class CoverLetterCreatorHandler(BaseHandler):
         logger.info(f"""{user_prompt=}""")
 
         cover_letter = call_openai_api(
-            prompt=user_prompt,
             model="gpt-4o",
             max_tokens=500,
             temperature=0.3,

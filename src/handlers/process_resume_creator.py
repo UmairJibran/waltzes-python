@@ -103,7 +103,6 @@ class ResumeCreatorHandler(BaseHandler):
 
         # call openai api
         resume_segments = call_openai_api(
-            prompt=user_prompt,
             model="gpt-4o",
             max_tokens=5000,
             temperature=0.3,
