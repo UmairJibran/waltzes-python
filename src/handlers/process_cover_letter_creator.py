@@ -1,10 +1,11 @@
 """Handler for creating cover letters."""
 
 import json
+import time
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from services.llm.openai import call_openai_api
+from services.llm.langchain import call_groq_api, call_openai_api
 from services.llm.prompts import (
     system_prompt_cover_letter_writer,
     user_prompt_for_cover_letter_creation,
@@ -29,6 +30,7 @@ class CoverLetterCreatorHandler(BaseHandler):
 
         job_details = message_body.get("jobDetails", {})
         applicant_details = message_body.get("applicantDetails", {})
+        llm_model = message_body.get("llmModel", "groq")
         callback_url = message_body.get("callbackUrl")
         linkedin_data = applicant_details.get("linkedinScrapedData")
         job_skills_listed = job_details.get("skills")
@@ -97,16 +99,40 @@ class CoverLetterCreatorHandler(BaseHandler):
         )
         logger.info(f"""{user_prompt=}""")
 
-        cover_letter = call_openai_api(
-            prompt=user_prompt,
-            model="gpt-4o",
-            max_tokens=500,
-            temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt_cover_letter_writer},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
+        start_time = time.time()
+
+        match llm_model:
+            case "groq":
+                logger.info("Using GROQ model for cover letter creation")
+                cover_letter = call_groq_api(
+                    model="llama-3.3-70b-versatile",
+                    max_tokens=500,
+                    temperature=0.3,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt_cover_letter_writer,
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+            case "openai":
+                logger.info("Using OpenAI model for cover letter creation")
+                cover_letter = call_openai_api(
+                    model="gpt-4o",
+                    max_tokens=500,
+                    temperature=0.3,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt_cover_letter_writer,
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+
+        logger.info(f"Time taken to generate cover letter: {time.time() - start_time}")
+
         logger.critical(f"""{cover_letter=}""")
         send_data_to_callback_url(
             data={"content": cover_letter}, callback_url=callback_url

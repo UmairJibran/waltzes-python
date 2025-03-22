@@ -1,10 +1,11 @@
 """Handler for creating resumes."""
 
 import json
+import time
 from typing import Any, Dict
 
 from handlers.base_handler import BaseHandler
-from services.llm.openai import call_openai_api
+from services.llm.langchain import call_groq_api, call_openai_api
 from services.llm.prompts import (
     system_prompt_resume_segmentation,
     user_prompt_for_resume_creation,
@@ -48,6 +49,7 @@ class ResumeCreatorHandler(BaseHandler):
 
         job_details = message_body.get("jobDetails", {})
         applicant_details = message_body.get("applicantDetails", {})
+        llm_model = message_body.get("llmModel", "groq")
 
         callback_url = message_body.get("callbackUrl")
         linkedin_data = applicant_details.get("linkedinScrapedData")
@@ -101,17 +103,40 @@ class ResumeCreatorHandler(BaseHandler):
         )
         logger.info(f"""{user_prompt=}""")
 
-        # call openai api
-        resume_segments = call_openai_api(
-            prompt=user_prompt,
-            model="gpt-4o",
-            max_tokens=5000,
-            temperature=0.3,
-            messages=[
-                {"role": "system", "content": system_prompt_resume_segmentation},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
+        start_time = time.time()
+
+        match llm_model:
+            case "groq":
+                logger.info("Using GROQ model for resume creation")
+                resume_segments = call_groq_api(
+                    model="llama-3.3-70b-versatile",
+                    max_tokens=5000,
+                    temperature=0.3,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt_resume_segmentation,
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+            case "openai":
+                logger.info("Using OpenAI model for resume creation")
+                resume_segments = call_openai_api(
+                    model="gpt-4o",
+                    max_tokens=5000,
+                    temperature=0.3,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt_resume_segmentation,
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+
+        print(f"Time taken: {time.time() - start_time}")
+
         logger.critical(f"""{resume_segments=}""")
         json_segments = parse_json_from_llm(resume_segments)
         logger.critical(f"""{json_segments=}""")
