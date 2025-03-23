@@ -3,7 +3,7 @@
 import json
 import os
 import uuid
-from typing import List, Optional
+from typing import Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
@@ -11,14 +11,14 @@ import requests
 from utils.logger import logger
 
 
-def parse_json_from_llm(input_text: str) -> Optional[List[str]]:
+def parse_json_from_llm(input_text: str) -> Optional[dict]:
     """Parse JSON coming from LLM responses, handling markdown code blocks.
 
     Args:
         input_text: String that may contain JSON, possibly wrapped in markdown code blocks
 
     Returns:
-        List of strings if parsing succeeds, None otherwise
+        Parsed JSON object if parsing succeeds, None otherwise
     """
     try:
         if not isinstance(input_text, str):
@@ -27,7 +27,12 @@ def parse_json_from_llm(input_text: str) -> Optional[List[str]]:
         input_text = input_text.strip()
         if input_text.startswith("```json") and input_text.endswith("```"):
             input_text = input_text[7:-3].strip()
-
+        elif input_text.startswith("```json\n") and input_text.endswith("```"):
+            input_text = input_text[8:-3].strip()
+        elif input_text.startswith("```") and input_text.endswith("```"):
+            input_text = input_text[3:-3].strip()
+        input_text = input_text.replace(",\n    ]", "\n    ]")
+        input_text = input_text.replace(",\n]", "\n]")
         parsed = json.loads(input_text)
         return parsed
 
