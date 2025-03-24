@@ -38,7 +38,7 @@ def parse_json_from_llm(input_text: str) -> Optional[dict]:
 
     except Exception as error:
         logger.error(f"Invalid JSON: {str(error)}")
-        return None
+        raise error
 
 
 def send_data_to_callback_url(data: dict, callback_url: str):
