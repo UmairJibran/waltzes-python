@@ -21,6 +21,7 @@ def clean_title(text: str) -> str:
         .replace("  ", " ")
         .replace("  ", " ")
         .replace(" ", "_")
+        .replace("/", "")
         .lower()
     )
 
