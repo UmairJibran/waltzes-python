@@ -31,6 +31,9 @@ def fetch_job_details(job_url):
                 "description": "<complete description of the job>",
                 "companyName": "<name of the company>",
                 "skills": ["<list of skills required for this job>"],
+                "location": "<location of the job>",
+                "jobType": "<type of job>",
+                "salary": "<salary range>",
             },
         }
     )
