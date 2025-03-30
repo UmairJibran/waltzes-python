@@ -42,10 +42,12 @@ class PDFCreatorHandler(BaseHandler):
 
         bucket = os.getenv("AWS_RES_BUCKET")
         job_title = message_body.get("jobDetails", {}).get("title", "")
+        company_name = message_body.get("jobDetails", {}).get("companyName", "")
         applicant_details = message_body.get("applicantDetails", {})
         firstName = applicant_details.get("firstName", "")
         lastName = applicant_details.get("lastName", "")
         title = f"{firstName} {lastName} - {job_title}"
+        file_name = f"{firstName} {lastName} - {company_name}"
         root_path = message_body.get("path", "documents")
 
         resume_key = None
@@ -53,7 +55,7 @@ class PDFCreatorHandler(BaseHandler):
 
         if message_body.get("resume"):
             generated_file = create_resume(segments=message_body["resume"])
-            resume_key = f"{root_path}/{clean_title(title)}_resume.pdf"
+            resume_key = f"{root_path}/{clean_title(file_name)}_resume.pdf"
             upload_item(
                 path=generated_file,
                 bucket=bucket,
@@ -65,7 +67,7 @@ class PDFCreatorHandler(BaseHandler):
             generated_file = create_cover_letter(
                 text=message_body["coverLetter"], title=title
             )
-            cover_letter_key = f"{root_path}/{clean_title(title)}_cover_letter.pdf"
+            cover_letter_key = f"{root_path}/{clean_title(file_name)}_cover_letter.pdf"
             upload_item(
                 path=generated_file,
                 bucket=bucket,
