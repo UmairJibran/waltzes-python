@@ -438,7 +438,6 @@ def create_resume(segments, font_family="Times", segment_order=None):
 
     if segment_order is None:
         segment_order = [
-            "summary",
             "experience",
             "skills",
             "certifications",
@@ -458,21 +457,21 @@ def create_resume(segments, font_family="Times", segment_order=None):
 
     if "summary" in segments:
         _add_summary_section(pdf, segments["summary"], is_modern=False)
-
-    if "experience" in segments:
-        _add_experience_section(pdf, segments["experience"], is_modern=False)
-
-    if "skills" in segments:
-        _add_skills_section(pdf, segments["skills"], is_modern=False)
-
-    if "certifications" in segments:
-        _add_certifications_section(pdf, segments["certifications"], is_modern=False)
-
-    if "open_source" in segments:
-        _add_open_source_section(pdf, segments["open_source"], is_modern=False)
-
-    if "education" in segments:
-        _add_education_section(pdf, segments["education"], is_modern=False)
+    for segment in segment_order:
+        if segment == "summary" and "summary" in segments:
+            _add_summary_section(pdf, segments["summary"], is_modern=False)
+        elif segment == "experience" and "experience" in segments:
+            _add_experience_section(pdf, segments["experience"], is_modern=False)
+        elif segment == "education" and "education" in segments:
+            _add_education_section(pdf, segments["education"], is_modern=False)
+        elif segment == "skills" and "skills" in segments:
+            _add_skills_section(pdf, segments["skills"], is_modern=False)
+        elif segment == "certifications" and "certifications" in segments:
+            _add_certifications_section(
+                pdf, segments["certifications"], is_modern=False
+            )
+        elif segment == "open_source" and "open_source" in segments:
+            _add_open_source_section(pdf, segments["open_source"], is_modern=False)
 
     output_file = generate_file_path()
     pdf.output(output_file)
@@ -486,7 +485,6 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
 
     if segment_order is None:
         segment_order = [
-            "summary",
             "experience",
             "skills",
             "certifications",
@@ -511,10 +509,10 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
 
     _add_contact_info(pdf, segments.get("contact"), separator=" | ", is_modern=True)
 
+    if "summary" in segments:
+        _add_summary_section(pdf, segments["summary"], is_modern=True)
     for section in segment_order:
-        if section == "summary" and "summary" in segments:
-            _add_summary_section(pdf, segments["summary"], is_modern=True)
-        elif section == "experience" and "experience" in segments:
+        if section == "experience" and "experience" in segments:
             _add_experience_section(pdf, segments["experience"], is_modern=True)
         elif section == "education" and "education" in segments:
             _add_education_section(pdf, segments["education"], is_modern=True)
