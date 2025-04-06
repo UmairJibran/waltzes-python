@@ -26,6 +26,106 @@ class PDF(FPDF):
         self.cell(0, 10, "Page " + str(self.page_no()) + "/{nb}", 0, 0, "C")
 
 
+def _safe_string(text, default=""):
+    """Safely convert to string and strip whitespace."""
+    return text.strip() if isinstance(text, str) else default
+
+
+def _create_bullet_point(pdf, text, indent=5):
+    """Create a bullet point with text."""
+    if not _safe_string(text):
+        pdf.ln()
+        return
+
+    pdf.cell(indent, 5, "-", 0, 0)
+    available_width = pdf.w - pdf.l_margin - pdf.r_margin - indent
+    if available_width > pdf.get_string_width("W"):
+        pdf.multi_cell(available_width, 5, f" {text}")
+        pdf.set_x(pdf.l_margin)
+    else:
+        pdf.ln()
+
+
+def _add_section_header(pdf, title, is_modern=False):
+    """Add a section header to the PDF."""
+    if not _safe_string(title):
+        return
+
+    if is_modern:
+        pdf.set_font(pdf.font_family, "B", 14)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(0, 8, title.upper(), 0, 1, "L", True)
+        pdf.ln(2)
+    else:
+        pdf.set_font(pdf.font_family, "B", 12)
+        pdf.cell(0, 10, title.upper(), 0, 1, "")
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(2)
+
+
+def _format_description_list(description):
+    """Format and validate a description list."""
+    if isinstance(description, list):
+        return [
+            d.strip() for d in description if d and isinstance(d, str) and d.strip()
+        ]
+    return []
+
+
+def _add_title_with_date(pdf, title, date, font_size=11, is_right_aligned=True):
+    """Add a title with an optional date aligned to the right."""
+    title_text = _safe_string(title)
+    date_text = _safe_string(date)
+
+    if not title_text:
+        return
+
+    pdf.set_font(pdf.font_family, "B", font_size)
+
+    if date_text and is_right_aligned:
+        date_width = pdf.get_string_width(date_text) + 10
+        title_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
+        pdf.cell(title_width, 6, title_text, 0, 0)
+        pdf.set_font(pdf.font_family, "", font_size - 1)
+        pdf.cell(date_width, 6, date_text, 0, 1, "R")
+    else:
+        pdf.cell(0, 6, title_text, 0, 1)
+
+
+def _process_bullet_points(pdf, description):
+    """Process bullet points from a description."""
+    if not description:
+        return
+
+    pdf.set_font(pdf.font_family, "", 10)
+
+    if isinstance(description, list):
+        descriptions = _format_description_list(description)
+        for bullet in descriptions:
+            _create_bullet_point(pdf, bullet)
+    elif isinstance(description, str) and description.strip():
+        pdf.multi_cell(0, 5, description.strip())
+
+
+def _add_contact_info(pdf, contact_items, separator=" - ", is_modern=False):
+    """Add contact information to the PDF."""
+    if not isinstance(contact_items, list):
+        return
+
+    pdf.set_font(pdf.font_family, "", 10)
+
+    contact = [
+        item.strip()
+        for item in contact_items
+        if item and isinstance(item, str) and item.strip()
+    ]
+
+    if contact:
+        contact_text = separator.join(contact)
+        pdf.cell(0, 5, contact_text, 0, 1, "C")
+        pdf.ln(5 if not is_modern else 10)
+
+
 def create_resume_with_template(
     segments, template="classic", font_family="Times", segment_order=None
 ):
@@ -42,327 +142,337 @@ def create_resume_with_template(
         str: Path to the generated PDF file
     """
     if template == "classic":
-        return create_resume(segments, font_family)
+        return create_resume(segments, font_family, segment_order)
     elif template == "modern":
         return create_modern_resume(segments, font_family, segment_order)
     else:
         return create_resume(segments, font_family)
 
 
-def create_resume(segments, font_family="Times"):
-    """Create a resume PDF using the classic template."""
-    if not isinstance(segments, dict):
-        segments = {}
+def _add_summary_section(pdf, summary, is_modern=False):
+    """Add summary section to the PDF."""
+    if not _safe_string(summary):
+        return
 
-    font_family = font_family if isinstance(font_family, str) else "Times"
+    _add_section_header(pdf, "Professional Summary", is_modern)
+    pdf.set_font(
+        pdf.font_family, "" if not is_modern else "I", 10 if not is_modern else 11
+    )
+    pdf.multi_cell(0, 5, summary.strip())
+    pdf.ln(5)
 
-    pdf = PDF(font_family=font_family)
-    pdf.alias_nb_pages()
-    pdf.add_page()
 
-    pdf.set_font(font_family, "B", 16)
-    name = segments.get("name", "")
-    name = name.strip() if isinstance(name, str) else ""
-    pdf.cell(0, 10, name, 0, 1, "C")
+def _add_experience_section(pdf, experience_items, is_modern=False):
+    """Add experience section to the PDF."""
+    if not experience_items:
+        return
 
-    if "contact" in segments and isinstance(segments["contact"], list):
-        pdf.set_font(font_family, "", 10)
+    _add_section_header(pdf, "Professional Experience", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
 
-        contact = [
-            item.strip()
-            for item in segments["contact"]
-            if item and isinstance(item, str) and item.strip()
-        ]
-        if contact:
-            contact_text = " - ".join(contact)
-            pdf.cell(0, 5, contact_text, 0, 1, "C")
-            pdf.ln(5)
+    for item in experience_items:
+        if isinstance(item, dict):
+            company = _safe_string(item.get("company"))
+            title_text = _safe_string(item.get("title"))
+            date = _safe_string(item.get("date"))
+            workplace = _safe_string(item.get("location"))
 
-    def add_section_header(title):
-        if not title or not isinstance(title, str):
-            return
-        pdf.set_font(font_family, "B", 12)
-        pdf.cell(0, 10, title.upper(), 0, 1, "")
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(2)
+            if is_modern:
+                pdf.set_font(pdf.font_family, "B", 12)
+                if company:
+                    pdf.cell(0, 6, company, 0, 1)
 
-    def add_summary_section(summary):
-        if not summary or not isinstance(summary, str):
-            return
-
-        add_section_header("PROFESSIONAL SUMMARY")
-        pdf.set_font(font_family, "", 10)
-        pdf.multi_cell(0, 5, summary.strip())
-        pdf.ln(5)
-
-    def add_experience_section(experience_items):
-        if not experience_items:
-            return
-
-        add_section_header("PROFESSIONAL EXPERIENCE")
-        pdf.set_font(font_family, "", 10)
-
-        for item in experience_items:
-            if isinstance(item, dict):
-                company = item.get("company", "")
-                title_text = item.get("title", "")
-                pdf.set_font(font_family, "B", 11)
-                first_line = ""
-                if isinstance(title_text, str) and title_text.strip():
-                    first_line = title_text.strip()
-                if company and isinstance(company, str) and company.strip():
-                    if first_line:
-                        first_line = first_line + " at " + company.strip()
+                pdf.set_font(pdf.font_family, "", 11)
+                if title_text:
+                    title_width = pdf.w - pdf.l_margin - pdf.r_margin
+                    if date:
+                        date_width = pdf.get_string_width(date) + 10
+                        title_width -= date_width
+                        pdf.cell(title_width, 5, title_text, 0, 0)
+                        pdf.cell(date_width, 5, date, 0, 1, "R")
                     else:
-                        first_line = company.strip()
-
-                pdf.cell(0, 6, first_line.strip(), 0, 1)
-
-                workplace = item.get("location", "")
-
-                date = item.get("date", "")
-                date = date.strip() if isinstance(date, str) else ""
+                        pdf.cell(title_width, 5, title_text, 0, 1)
 
                 if workplace:
-                    pdf.set_font(font_family, "", 10)
-                    if workplace and isinstance(workplace, str) and workplace.strip():
-                        pdf.cell(
-                            pdf.get_string_width(workplace.strip()) + 5,
-                            5,
-                            workplace.strip(),
-                            0,
-                            0,
-                        )
+                    pdf.set_font(pdf.font_family, "I", 10)
+                    pdf.cell(0, 5, workplace, 0, 1)
+            else:
+                pdf.set_font(pdf.font_family, "B", 11)
+                first_line = title_text
+                if company:
+                    if first_line:
+                        first_line = first_line + " at " + company
+                    else:
+                        first_line = company
+
+                if first_line:
+                    pdf.cell(0, 6, first_line.strip(), 0, 1)
+
+                if workplace:
+                    pdf.set_font(pdf.font_family, "", 10)
+                    pdf.cell(pdf.get_string_width(workplace) + 5, 5, workplace, 0, 0)
+
                 if date:
                     pdf.set_x(pdf.w - pdf.get_string_width(date) - 10)
                     pdf.cell(pdf.get_string_width(date), 5, date, 0, 1, "R")
                 elif workplace:
                     pdf.ln()
 
-                description = item.get("description", "")
-                if description:
-                    pdf.set_font(font_family, "", 10)
-                    if isinstance(description, list):
-                        descriptions = [
-                            d.strip()
-                            for d in description
-                            if d and isinstance(d, str) and d.strip()
-                        ]
-                        for bullet in descriptions:
-                            pdf.cell(5, 5, "-", 0, 0)
-                            if bullet and len(bullet) > 0:
-                                available_width = (
-                                    pdf.w - pdf.l_margin - pdf.r_margin - 5
-                                )
-                                if available_width > pdf.get_string_width("W"):
-                                    pdf.multi_cell(available_width, 5, f" {bullet}")
-                                    pdf.set_x(pdf.l_margin)
-                                else:
-                                    pdf.ln()
-                            else:
-                                pdf.ln()
-                pdf.ln(2)
+            _process_bullet_points(pdf, item.get("description"))
+            pdf.ln(5 if is_modern else 2)
 
-        pdf.ln(5)
+    pdf.ln(3)
 
-    def add_education_section(education_items):
-        if not education_items:
-            return
 
-        add_section_header("EDUCATION")
-        pdf.set_font(font_family, "", 10)
+def _add_education_section(pdf, education_items, is_modern=False):
+    """Add education section to the PDF."""
+    if not education_items:
+        return
 
-        for item in education_items:
-            if isinstance(item, dict):
-                degree = item.get("title", "")
-                institute = item.get("institute", "")
-                location = item.get("location", "")
-                date = item.get("date", "")
-                date = date.strip() if isinstance(date, str) else ""
+    _add_section_header(pdf, "Education", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
 
-                pdf.set_font(font_family, "B", 11)
-                if isinstance(degree, str) and degree.strip():
+    for item in education_items:
+        if isinstance(item, dict):
+            institute = _safe_string(item.get("institute"))
+            degree = _safe_string(item.get("title"))
+            location = _safe_string(item.get("location"))
+            date = _safe_string(item.get("date"))
+
+            if is_modern:
+                if institute:
+                    pdf.set_font(pdf.font_family, "B", 12)
+                    pdf.cell(0, 6, institute, 0, 1)
+
+                if degree:
+                    pdf.set_font(pdf.font_family, "", 11)
                     date_width = pdf.get_string_width(date) + 10 if date else 0
                     degree_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
-                    pdf.cell(degree_width, 6, degree.strip(), 0, 0)
-
-                if date:
-                    pdf.set_font(font_family, "", 10)
-                    pdf.set_x(pdf.w - pdf.r_margin - pdf.get_string_width(date))
-                    pdf.cell(pdf.get_string_width(date), 6, date, 0, 1, "R")
-                else:
-                    pdf.ln()
-
-                pdf.set_font(font_family, "", 10)
-                if institute and isinstance(institute, str) and institute.strip():
-                    institute_width = pdf.w - pdf.l_margin - pdf.r_margin
-                    if location and isinstance(location, str) and location.strip():
-                        institute_width -= pdf.get_string_width(location.strip()) + 10
-                    pdf.cell(institute_width, 5, institute.strip(), 0, 0)
-
-                if location and isinstance(location, str) and location.strip():
-                    pdf.cell(
-                        pdf.get_string_width(location.strip()) + 10,
-                        5,
-                        location.strip(),
-                        0,
-                        1,
-                        "R",
-                    )
-                elif institute:
-                    pdf.ln()
-
-                description = item.get("description", "")
-                if description:
-                    pdf.set_font(font_family, "", 10)
-                    if isinstance(description, list):
-                        descriptions = [
-                            d.strip()
-                            for d in description
-                            if d and isinstance(d, str) and d.strip()
-                        ]
-                        for bullet in descriptions:
-                            pdf.cell(5, 5, "-", 0, 0)
-                            if bullet and len(bullet) > 0:
-                                available_width = (
-                                    pdf.w - pdf.l_margin - pdf.r_margin - 5
-                                )
-                                pdf.multi_cell(available_width, 5, f" {bullet}")
-                                pdf.set_x(pdf.l_margin)
-                            else:
-                                pdf.ln()
-                pdf.ln(2)
-        pdf.ln(5)
-
-    def add_skills_section(skills_items):
-        if not skills_items:
-            return
-
-        add_section_header("SKILLS")
-        pdf.set_font(font_family, "", 10)
-
-        if isinstance(skills_items, list):
-            string_skills = []
-
-            for item in skills_items:
-                string_skills.append(item)
-
-            if string_skills:
-                skills_text = " - ".join(string_skills)
-                pdf.multi_cell(0, 5, skills_text)
-                pdf.ln(2)
-
-        pdf.ln(5)
-
-    def add_certifications_section(cert_items):
-        if not cert_items:
-            return
-
-        add_section_header("CERTIFICATIONS")
-        if isinstance(cert_items, list):
-            for item in cert_items:
-                if isinstance(item, dict):
-                    title_text = item.get("title", "")
-                    issuer = item.get("issuer", "")
-                    date = item.get("date", "")
-
-                    pdf.set_font(font_family, "B", 11)
-
-                    date_width = pdf.get_string_width(date) + 10 if date else 0
-                    title_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
-
-                    if isinstance(title_text, str) and title_text.strip():
-                        if issuer and isinstance(issuer, str) and issuer.strip():
-                            title_text = f"{title_text.strip()} by {issuer.strip()}"
-                        pdf.cell(title_width, 5, title_text.strip(), 0, 0)
+                    pdf.cell(degree_width, 5, degree, 0, 0)
 
                     if date:
-                        pdf.set_font(font_family, "", 10)
                         pdf.cell(date_width, 5, date, 0, 1, "R")
                     else:
                         pdf.ln()
 
-                    description = item.get("description", "")
-                    if description:
-                        if isinstance(description, list):
-                            for bullet in description:
-                                if isinstance(bullet, str) and bullet.strip():
-                                    pdf.cell(5, 5, "-", 0, 0)
-                                    pdf.multi_cell(0, 5, f" {bullet.strip()}")
-                        elif isinstance(description, str) and description.strip():
-                            pdf.multi_cell(0, 5, description.strip())
-                    credentialId = item.get("credentialId", "")
-                    if credentialId:
-                        pdf.set_x(pdf.l_margin)
-                        pdf.multi_cell(0, 5, credentialId.strip())
-                    pdf.ln(3)
+                if location:
+                    pdf.set_font(pdf.font_family, "I", 10)
+                    pdf.cell(0, 5, location, 0, 1)
+            else:
+                if degree:
+                    pdf.set_font(pdf.font_family, "B", 11)
+                    date_width = pdf.get_string_width(date) + 10 if date else 0
+                    degree_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
+                    pdf.cell(degree_width, 6, degree, 0, 0)
 
-                elif isinstance(item, str) and item.strip():
-                    pdf.cell(0, 5, f"- {item.strip()}", 0, 1)
+                    if date:
+                        pdf.set_font(pdf.font_family, "", 10)
+                        pdf.set_x(pdf.w - pdf.r_margin - pdf.get_string_width(date))
+                        pdf.cell(pdf.get_string_width(date), 6, date, 0, 1, "R")
+                    else:
+                        pdf.ln()
 
-        pdf.ln(5)
+                pdf.set_font(pdf.font_family, "", 10)
+                if institute:
+                    institute_width = pdf.w - pdf.l_margin - pdf.r_margin
+                    if location:
+                        institute_width -= pdf.get_string_width(location) + 10
+                    pdf.cell(institute_width, 5, institute, 0, 0)
 
-    def add_open_source_section(open_source_items):
-        if not open_source_items:
-            return
+                if location:
+                    pdf.cell(
+                        pdf.get_string_width(location) + 10, 5, location, 0, 1, "R"
+                    )
+                elif institute:
+                    pdf.ln()
 
-        add_section_header("OPEN SOURCE")
-        pdf.set_font(font_family, "", 10)
+            _process_bullet_points(pdf, item.get("description"))
+            pdf.ln(3 if is_modern else 2)
 
-        if isinstance(open_source_items, list):
-            for item in open_source_items:
-                if isinstance(item, dict):
-                    title_text = item.get("title", "")
-                    url = item.get("url", "")
+    pdf.ln(3)
 
-                    if isinstance(title_text, str) and title_text.strip():
-                        pdf.set_font(font_family, "B", 11)
-                        if url and isinstance(url, str) and url.strip():
-                            text_color = pdf.text_color
 
-                            pdf.set_text_color(0, 0, 255)
-                            pdf.cell(0, 6, title_text.strip(), 0, 1, link=url.strip())
+def _add_skills_section(pdf, skills_items, is_modern=False):
+    """Add skills section to the PDF."""
+    if not skills_items:
+        return
 
-                            pdf.set_text_color(
-                                text_color[0], text_color[1], text_color[2]
-                            )
+    _add_section_header(pdf, "Skills", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
+
+    if isinstance(skills_items, list):
+        skills = [
+            item.strip()
+            for item in skills_items
+            if isinstance(item, str) and item.strip()
+        ]
+
+        if skills:
+            skills_text = " | " if is_modern else " - "
+            skills_text = skills_text.join(skills)
+
+            available_width = pdf.w - pdf.l_margin - pdf.r_margin
+            pdf.multi_cell(available_width, 5, skills_text)
+
+    pdf.ln(3)
+
+
+def _add_certifications_section(pdf, cert_items, is_modern=False):
+    """Add certifications section to the PDF."""
+    if not cert_items:
+        return
+
+    _add_section_header(pdf, "Certifications", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
+
+    if isinstance(cert_items, list):
+        for item in cert_items:
+            if isinstance(item, dict):
+                title_text = _safe_string(item.get("title"))
+                issuer = _safe_string(item.get("issuer"))
+                date = _safe_string(item.get("date"))
+
+                if is_modern:
+                    if title_text:
+                        pdf.set_font(pdf.font_family, "B", 11)
+                        pdf.cell(0, 6, title_text, 0, 1)
+
+                    if issuer:
+                        pdf.set_font(pdf.font_family, "", 10)
+                        issuer_width = pdf.w - pdf.l_margin - pdf.r_margin
+                        if date:
+                            date_width = pdf.get_string_width(date) + 10
+                            issuer_width -= date_width
+                            pdf.cell(issuer_width, 5, f"Issued by: {issuer}", 0, 0)
+                            pdf.cell(date_width, 5, date, 0, 1, "R")
                         else:
-                            pdf.cell(0, 6, title_text.strip(), 0, 1)
+                            pdf.cell(issuer_width, 5, f"Issued by: {issuer}", 0, 1)
 
-                    description = item.get("description", "")
-                    if description:
-                        pdf.set_font(font_family, "", 10)
-                        if isinstance(description, list):
-                            for bullet in description:
-                                if isinstance(bullet, str) and bullet.strip():
-                                    pdf.cell(5, 5, "-", 0, 0)
-                                    pdf.multi_cell(0, 5, f" {bullet.strip()}")
-                        elif isinstance(description, str) and description.strip():
-                            pdf.multi_cell(0, 5, description.strip())
+                    # if credentialId:
+                    #     pdf.set_font(pdf.font_family, "I", 9)
+                    #     pdf.cell(0, 5, f"Credential ID: {credentialId}", 0, 1)
+                else:
+                    pdf.set_font(pdf.font_family, "B", 11)
+                    date_width = pdf.get_string_width(date) + 10 if date else 0
+                    title_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
 
-                    pdf.ln(2)
-                elif isinstance(item, str) and item.strip():
-                    pdf.cell(0, 5, f"- {item.strip()}", 0, 1)
+                    if title_text:
+                        if issuer:
+                            title_text = f"{title_text} by {issuer}"
+                        pdf.cell(title_width, 5, title_text, 0, 0)
 
-        pdf.ln(5)
+                    if date:
+                        pdf.set_font(pdf.font_family, "", 10)
+                        pdf.cell(date_width, 5, date, 0, 1, "R")
+                    else:
+                        pdf.ln()
 
-    if "summary" in segments and isinstance(segments["summary"], str):
-        add_summary_section(segments["summary"])
+                    # if credentialId:
+                    #     pdf.set_x(pdf.l_margin)
+                    #     pdf.multi_cell(0, 5, credentialId)
+
+                _process_bullet_points(pdf, item.get("description"))
+                pdf.ln(3)
+            elif isinstance(item, str) and item.strip():
+                pdf.cell(
+                    5 if is_modern else 0,
+                    5,
+                    "-" if is_modern else f"- {item.strip()}",
+                    0,
+                    0 if is_modern else 1,
+                )
+                if is_modern:
+                    pdf.cell(0, 5, item.strip(), 0, 1)
+
+    pdf.ln(3)
+
+
+def _add_open_source_section(pdf, open_source_items, is_modern=False):
+    """Add open source section to the PDF."""
+    if not open_source_items:
+        return
+
+    _add_section_header(pdf, "Open Source", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
+
+    if isinstance(open_source_items, list):
+        for item in open_source_items:
+            if isinstance(item, dict):
+                title_text = _safe_string(item.get("title"))
+                url = _safe_string(item.get("url"))
+
+                if title_text:
+                    pdf.set_font(pdf.font_family, "B", 11)
+                    if url:
+                        text_color = pdf.text_color
+                        pdf.set_text_color(
+                            0, 102 if is_modern else 0, 204 if is_modern else 255
+                        )
+                        pdf.cell(0, 6, title_text, 0, 1, link=url)
+                        pdf.set_text_color(text_color[0], text_color[1], text_color[2])
+                    else:
+                        pdf.cell(0, 6, title_text, 0, 1)
+
+                _process_bullet_points(pdf, item.get("description"))
+                pdf.ln(3 if is_modern else 2)
+            elif isinstance(item, str) and item.strip():
+                pdf.cell(
+                    5 if is_modern else 0,
+                    5,
+                    "-" if is_modern else f"- {item.strip()}",
+                    0,
+                    0 if is_modern else 1,
+                )
+                if is_modern:
+                    pdf.cell(0, 5, item.strip(), 0, 1)
+
+    pdf.ln(3)
+
+
+def create_resume(segments, font_family="Times", segment_order=None):
+    """Create a resume PDF using the classic template."""
+    if not isinstance(segments, dict):
+        segments = {}
+
+    font_family = font_family if isinstance(font_family, str) else "Times"
+
+    if segment_order is None:
+        segment_order = [
+            "summary",
+            "experience",
+            "skills",
+            "certifications",
+            "open_source",
+            "education",
+        ]
+
+    pdf = PDF(font_family=font_family)
+    pdf.alias_nb_pages()
+    pdf.add_page()
+
+    pdf.set_font(font_family, "B", 16)
+    name = _safe_string(segments.get("name"))
+    pdf.cell(0, 10, name, 0, 1, "C")
+
+    _add_contact_info(pdf, segments.get("contact"), separator=" - ", is_modern=False)
+
+    if "summary" in segments:
+        _add_summary_section(pdf, segments["summary"], is_modern=False)
 
     if "experience" in segments:
-        add_experience_section(segments["experience"])
+        _add_experience_section(pdf, segments["experience"], is_modern=False)
 
     if "skills" in segments:
-        add_skills_section(segments["skills"])
+        _add_skills_section(pdf, segments["skills"], is_modern=False)
 
     if "certifications" in segments:
-        add_certifications_section(segments["certifications"])
+        _add_certifications_section(pdf, segments["certifications"], is_modern=False)
 
     if "open_source" in segments:
-        add_open_source_section(segments["open_source"])
+        _add_open_source_section(pdf, segments["open_source"], is_modern=False)
 
     if "education" in segments:
-        add_education_section(segments["education"])
+        _add_education_section(pdf, segments["education"], is_modern=False)
 
     output_file = generate_file_path()
     pdf.output(output_file)
@@ -391,8 +501,7 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
     pdf.add_page()
 
     pdf.set_font(font_family, "B", 18)
-    name = segments.get("name", "")
-    name = name.strip() if isinstance(name, str) else ""
+    name = _safe_string(segments.get("name"))
     pdf.cell(0, 10, name, 0, 1, "C")
 
     line_width = pdf.get_string_width(name) * 0.8
@@ -400,283 +509,21 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
     pdf.line(line_start, pdf.get_y(), line_start + line_width, pdf.get_y())
     pdf.ln(5)
 
-    if "contact" in segments and isinstance(segments["contact"], list):
-        pdf.set_font(font_family, "", 10)
-        contact = [
-            item.strip()
-            for item in segments["contact"]
-            if item and isinstance(item, str) and item.strip()
-        ]
-        if contact:
-            contact_text = " | ".join(contact)
-            pdf.cell(0, 5, contact_text, 0, 1, "C")
-            pdf.ln(10)
-
-    def add_section_header(title):
-        if not title or not isinstance(title, str):
-            return
-        pdf.set_font(font_family, "B", 14)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(0, 8, title.upper(), 0, 1, "L", True)
-        pdf.ln(2)
-
-    def add_summary_section(summary):
-        if not summary or not isinstance(summary, str):
-            return
-
-        add_section_header("Professional Summary")
-        pdf.set_font(font_family, "I", 11)
-        pdf.multi_cell(0, 5, summary.strip())
-        pdf.ln(5)
-
-    def add_experience_section(experience_items):
-        if not experience_items:
-            return
-
-        add_section_header("Professional Experience")
-        pdf.set_font(font_family, "", 10)
-
-        for item in experience_items:
-            if isinstance(item, dict):
-                company = item.get("company", "")
-                title_text = item.get("title", "")
-                pdf.set_font(font_family, "B", 12)
-
-                if company and isinstance(company, str) and company.strip():
-                    pdf.cell(0, 6, company.strip(), 0, 1)
-
-                pdf.set_font(font_family, "", 11)
-                date = item.get("date", "")
-                date = date.strip() if isinstance(date, str) else ""
-
-                if isinstance(title_text, str) and title_text.strip():
-                    title_width = pdf.w - pdf.l_margin - pdf.r_margin
-                    if date:
-                        date_width = pdf.get_string_width(date) + 10
-                        title_width -= date_width
-                        pdf.cell(title_width, 5, title_text.strip(), 0, 0)
-                        pdf.cell(date_width, 5, date, 0, 1, "R")
-                    else:
-                        pdf.cell(title_width, 5, title_text.strip(), 0, 1)
-
-                workplace = item.get("location", "")
-                if workplace and isinstance(workplace, str) and workplace.strip():
-                    pdf.set_font(font_family, "I", 10)
-                    pdf.cell(0, 5, workplace.strip(), 0, 1)
-
-                description = item.get("description", "")
-                if description:
-                    pdf.set_font(font_family, "", 10)
-                    if isinstance(description, list):
-                        descriptions = [
-                            d.strip()
-                            for d in description
-                            if d and isinstance(d, str) and d.strip()
-                        ]
-                        for bullet in descriptions:
-                            pdf.cell(5, 5, "-", 0, 0)
-                            if bullet and len(bullet) > 0:
-                                available_width = (
-                                    pdf.w - pdf.l_margin - pdf.r_margin - 5
-                                )
-                                pdf.multi_cell(available_width, 5, f" {bullet}")
-                                pdf.set_x(pdf.l_margin)
-                pdf.ln(5)
-
-        pdf.ln(3)
-
-    def add_education_section(education_items):
-        if not education_items:
-            return
-
-        add_section_header("Education")
-        pdf.set_font(font_family, "", 10)
-
-        for item in education_items:
-            if isinstance(item, dict):
-                institute = item.get("institute", "")
-                degree = item.get("title", "")
-                location = item.get("location", "")
-                date = item.get("date", "")
-
-                if institute and isinstance(institute, str) and institute.strip():
-                    pdf.set_font(font_family, "B", 12)
-                    pdf.cell(0, 6, institute.strip(), 0, 1)
-
-                if isinstance(degree, str) and degree.strip():
-                    pdf.set_font(font_family, "", 11)
-                    date_width = pdf.get_string_width(date) + 10 if date else 0
-                    degree_width = pdf.w - pdf.l_margin - pdf.r_margin - date_width
-                    pdf.cell(degree_width, 5, degree.strip(), 0, 0)
-
-                    if date and isinstance(date, str) and date.strip():
-                        pdf.cell(date_width, 5, date.strip(), 0, 1, "R")
-                    else:
-                        pdf.ln()
-
-                if location and isinstance(location, str) and location.strip():
-                    pdf.set_font(font_family, "I", 10)
-                    pdf.cell(0, 5, location.strip(), 0, 1)
-
-                description = item.get("description", "")
-                if description:
-                    pdf.set_font(font_family, "", 10)
-                    if isinstance(description, list):
-                        descriptions = [
-                            d.strip()
-                            for d in description
-                            if d and isinstance(d, str) and d.strip()
-                        ]
-                        for bullet in descriptions:
-                            pdf.cell(5, 5, "-", 0, 0)
-                            if bullet and len(bullet) > 0:
-                                available_width = (
-                                    pdf.w - pdf.l_margin - pdf.r_margin - 5
-                                )
-                                pdf.multi_cell(available_width, 5, f" {bullet}")
-                                pdf.set_x(pdf.l_margin)
-                pdf.ln(3)
-
-        pdf.ln(3)
-
-    def add_skills_section(skills_items):
-        if not skills_items:
-            return
-
-        add_section_header("Skills")
-        pdf.set_font(font_family, "", 10)
-
-        if isinstance(skills_items, list):
-            skills = [
-                item.strip()
-                for item in skills_items
-                if isinstance(item, str) and item.strip()
-            ]
-
-            if skills:
-                skills_text = " | ".join(skills)
-
-                available_width = pdf.w - pdf.l_margin - pdf.r_margin
-                pdf.multi_cell(available_width, 5, skills_text)
-
-        pdf.ln(3)
-
-    def add_certifications_section(cert_items):
-        if not cert_items:
-            return
-
-        add_section_header("Certifications")
-        pdf.set_font(font_family, "", 10)
-
-        if isinstance(cert_items, list):
-            for item in cert_items:
-                if isinstance(item, dict):
-                    title_text = item.get("title", "")
-                    issuer = item.get("issuer", "")
-                    date = item.get("date", "")
-
-                    if isinstance(title_text, str) and title_text.strip():
-                        pdf.set_font(font_family, "B", 11)
-                        pdf.cell(0, 6, title_text.strip(), 0, 1)
-
-                    if issuer and isinstance(issuer, str) and issuer.strip():
-                        pdf.set_font(font_family, "", 10)
-                        issuer_width = pdf.w - pdf.l_margin - pdf.r_margin
-                        if date and isinstance(date, str) and date.strip():
-                            date_width = pdf.get_string_width(date) + 10
-                            issuer_width -= date_width
-                            pdf.cell(
-                                issuer_width, 5, f"Issued by: {issuer.strip()}", 0, 0
-                            )
-                            pdf.cell(date_width, 5, date, 0, 1, "R")
-                        else:
-                            pdf.cell(
-                                issuer_width, 5, f"Issued by: {issuer.strip()}", 0, 1
-                            )
-
-                    credentialId = item.get("credentialId", "")
-                    if (
-                        credentialId
-                        and isinstance(credentialId, str)
-                        and credentialId.strip()
-                    ):
-                        pdf.set_font(font_family, "I", 9)
-                        pdf.cell(0, 5, f"Credential ID: {credentialId.strip()}", 0, 1)
-
-                    description = item.get("description", "")
-                    if description:
-                        pdf.set_font(font_family, "", 10)
-                        if isinstance(description, list):
-                            for bullet in description:
-                                if isinstance(bullet, str) and bullet.strip():
-                                    pdf.cell(5, 5, "-", 0, 0)
-                                    pdf.multi_cell(0, 5, f" {bullet.strip()}")
-                        elif isinstance(description, str) and description.strip():
-                            pdf.multi_cell(0, 5, description.strip())
-                    pdf.ln(3)
-
-                elif isinstance(item, str) and item.strip():
-                    pdf.cell(5, 5, "-", 0, 0)
-                    pdf.cell(0, 5, item.strip(), 0, 1)
-
-        pdf.ln(3)
-
-    def add_open_source_section(open_source_items):
-        if not open_source_items:
-            return
-
-        add_section_header("Open Source")
-        pdf.set_font(font_family, "", 10)
-
-        if isinstance(open_source_items, list):
-            for item in open_source_items:
-                if isinstance(item, dict):
-                    title_text = item.get("title", "")
-                    url = item.get("url", "")
-
-                    if isinstance(title_text, str) and title_text.strip():
-                        pdf.set_font(font_family, "B", 11)
-                        if url and isinstance(url, str) and url.strip():
-                            text_color = pdf.text_color
-                            pdf.set_text_color(0, 102, 204)
-                            pdf.cell(0, 6, title_text.strip(), 0, 1, link=url.strip())
-                            pdf.set_text_color(
-                                text_color[0], text_color[1], text_color[2]
-                            )
-                        else:
-                            pdf.cell(0, 6, title_text.strip(), 0, 1)
-
-                    description = item.get("description", "")
-                    if description:
-                        pdf.set_font(font_family, "", 10)
-                        if isinstance(description, list):
-                            for bullet in description:
-                                if isinstance(bullet, str) and bullet.strip():
-                                    pdf.cell(5, 5, "-", 0, 0)
-                                    pdf.multi_cell(0, 5, f" {bullet.strip()}")
-                        elif isinstance(description, str) and description.strip():
-                            pdf.multi_cell(0, 5, description.strip())
-                    pdf.ln(3)
-
-                elif isinstance(item, str) and item.strip():
-                    pdf.cell(5, 5, "-", 0, 0)
-                    pdf.cell(0, 5, item.strip(), 0, 1)
-
-        pdf.ln(3)
+    _add_contact_info(pdf, segments.get("contact"), separator=" | ", is_modern=True)
 
     for section in segment_order:
         if section == "summary" and "summary" in segments:
-            add_summary_section(segments["summary"])
+            _add_summary_section(pdf, segments["summary"], is_modern=True)
         elif section == "experience" and "experience" in segments:
-            add_experience_section(segments["experience"])
+            _add_experience_section(pdf, segments["experience"], is_modern=True)
         elif section == "education" and "education" in segments:
-            add_education_section(segments["education"])
+            _add_education_section(pdf, segments["education"], is_modern=True)
         elif section == "skills" and "skills" in segments:
-            add_skills_section(segments["skills"])
+            _add_skills_section(pdf, segments["skills"], is_modern=True)
         elif section == "certifications" and "certifications" in segments:
-            add_certifications_section(segments["certifications"])
+            _add_certifications_section(pdf, segments["certifications"], is_modern=True)
         elif section == "open_source" and "open_source" in segments:
-            add_open_source_section(segments["open_source"])
+            _add_open_source_section(pdf, segments["open_source"], is_modern=True)
 
     output_file = generate_file_path()
     pdf.output(output_file)
