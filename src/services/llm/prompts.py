@@ -25,9 +25,16 @@ Limit the number of experience and education segments to a maximum of 3 each, on
 Ensure that all locations are in the format "City, Country".
 Ensure that all dates are in the format "Month Year - Month Year" or "Month Year - Present". Month should be abbreviated to 3 letters (e.g. Jan, Feb, Mar, etc.).
 
+For Education information, if the user has a degree, include the degree title, location, school name, and description. If the user has multiple degrees, include only the most relevant ones. If the user has no degree, return an empty list.
+For Bullets points make sure to use action verbs and be specific about the user's achievements and responsibilities. Use past tense for previous jobs and present tense for current jobs.
+
+For the summary, use the job description to create a summary that is relevant to the job posting. The summary should be a brief overview of the user's skills and experience, and should not include any personal information such as email, phone number, etc. The summary should be very well worded and should be able to pass through the ATS system. And not more than 3 lines. DO NOT use any buzzwords or cliches in the summary. The summary should be written in a professional tone and should be relevant to the job posting. The summary should not have the most common buzzwords or cliches that are often used in resumes, such as "hardworking", "team player", "highly motivated", "detail-oriented", etc. Instead, focus on the user's skills and experience that are relevant to the job posting.
+
 The segments should be a json object with the following structure (NOT MARKDOWN, but a JSON object's string):
 {
     "name": "user's full name",
+    "summary": "user's summary to be generated based on the user's profile based on the provided job posting",
+    "location": "user's location (city, country)",
     "contact": [
         "site/portfolio  (if available) (without https:// and www, if subdomain is present, include that)",
         "email",
