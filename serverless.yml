@@ -31,6 +31,7 @@ provider:
             - Fn::GetAtt: [LinkedInScraperQueue, Arn]
             - Fn::GetAtt: [ResumeCreatorQueue, Arn]
             - Fn::GetAtt: [CoverLetterCreatorQueue, Arn]
+            - Fn::GetAtt: [JobStructurorQueue, Arn]
         - Effect: Allow
           Action:
             - s3:PutObject
@@ -51,6 +52,13 @@ resources:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: job-scraper-queue.fifo
+        FifoQueue: true
+        ContentBasedDeduplication: true
+
+    JobStructurorQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: job-structuror-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
 
@@ -101,6 +109,19 @@ functions:
       PYTHONPATH: ./src
       QUEUE_URL:
         Ref: JobScraperQueue
+
+  process_job_structuror:
+    handler: src/handlers/process_job_structuror.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [JobStructurorQueue, Arn]
+          batchSize: 1
+          functionResponseType: ReportBatchItemFailures
+    environment:
+      PYTHONPATH: ./src
+      QUEUE_URL:
+        Ref: JobStructurorQueue
 
   process_linkedin_scraper:
     handler: src/handlers/process_linkedin_scraper.handler
