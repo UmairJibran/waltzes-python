@@ -62,3 +62,35 @@ def call_groq_api(
     completion = llm_groq.invoke(messages)
 
     return completion.content
+
+
+def call_structured_groq_api(
+    model="llama-3.1-8b-instant",
+    max_tokens=500,
+    temperature=0.2,
+    messages=[],
+    schema=None,
+):
+    """Make a call to Groq API using langchain's interface.
+
+    Args:
+        model (str): The model to use for generation
+        max_tokens (int): Maximum number of tokens to generate
+        temperature (float): Controls randomness in the response
+        messages (list): List of messages to send to Groq
+
+    Returns:
+        str: The generated content from Groq
+    """
+    llm_groq = ChatGroq(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=None,
+        max_retries=2,
+    )
+    llm_groq = llm_groq.with_structured_output(schema, method="json_mode", strict=True)
+
+    completion = llm_groq.invoke(messages)
+
+    return completion
