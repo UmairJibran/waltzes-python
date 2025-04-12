@@ -48,13 +48,17 @@ def send_data_to_callback_url(data: dict, callback_url: str):
         data: Data to send
         callback_url: URL to send data to
     """
-    logger.warn(f"""{callback_url=}""")
+    logger.warning(f"""{callback_url=}""")
     try:
         response = requests.post(callback_url, json=data)
         logger.info(f"""{response.status_code=}""")
         response.raise_for_status()
     except requests.exceptions.RequestException as error:
+        logger.warning(f"""{data=}""")
         logger.error(f"Error sending data to callback URL: {str(error)}")
+        logger.error(
+            f"EXTENSIVE ERROR: {error.response.text if error.response else 'No response'}"
+        )
         return None
 
 
