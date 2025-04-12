@@ -47,6 +47,7 @@ resources:
         QueueName: pdf-processor-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
     JobScraperQueue:
       Type: AWS::SQS::Queue
@@ -54,6 +55,7 @@ resources:
         QueueName: job-scraper-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
     JobStructurorQueue:
       Type: AWS::SQS::Queue
@@ -61,6 +63,7 @@ resources:
         QueueName: job-structuror-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
     LinkedInScraperQueue:
       Type: AWS::SQS::Queue
@@ -68,6 +71,7 @@ resources:
         QueueName: linkedin-scraper-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
     ResumeCreatorQueue:
       Type: AWS::SQS::Queue
@@ -75,6 +79,7 @@ resources:
         QueueName: resume-creator-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
     CoverLetterCreatorQueue:
       Type: AWS::SQS::Queue
@@ -82,6 +87,7 @@ resources:
         QueueName: cover-letter-creator-queue.fifo
         FifoQueue: true
         ContentBasedDeduplication: true
+        VisibilityTimeout: 300
 
 functions:
   process_pdf_creator:
