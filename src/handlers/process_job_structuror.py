@@ -35,7 +35,7 @@ class JobStructureHandler(BaseHandler):
         start_notification_url = add_query_param(callback_url, "just-started", "true")
         send_data_to_callback_url({}, start_notification_url)
         response = call_structured_groq_api(
-            model="llama-3.2-1b-preview",
+            model="llama3-8b-8192",
             max_tokens=8192,
             temperature=0.2,
             messages=[
