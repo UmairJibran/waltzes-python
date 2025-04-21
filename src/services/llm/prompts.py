@@ -79,6 +79,10 @@ The segments should be a json object with the following structure (NOT MARKDOWN,
         }
     ],
 }
+
+For all the segments, make sure to re-write the content highly tailored to the job posting and make sure to use the most relevant information from the user's LinkedIn data and the job posting.
+Adjust the skills and certifications based on the job posting and the user's LinkedIn data.
+Rewrite the description of open source projects based on the user's LinkedIn data and the job posting, that are relevant to the job posting.
 """
 
 
