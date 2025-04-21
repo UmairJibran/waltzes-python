@@ -4,8 +4,9 @@ import json
 import time
 from typing import Any, Dict
 
+from services.llm.json_schemas import ResumeStructure
 from handlers.base_handler import BaseHandler
-from services.llm.langchain import call_groq_api, call_openai_api
+from services.llm.langchain import call_structured_groq_api, call_openai_api
 from services.llm.prompts import (
     system_prompt_resume_segmentation,
     user_prompt_for_resume_creation,
@@ -65,7 +66,8 @@ class ResumeCreatorHandler(BaseHandler):
             "additionalInstructions"
         )
 
-        start_notification_url = add_query_param(callback_url, "just-started", "true")
+        start_notification_url = add_query_param(
+            callback_url, "just-started", "true")
         send_data_to_callback_url({}, start_notification_url)
         # log all the details
         logger.info(f"Applicant Details: {applicant_details}")
@@ -108,10 +110,10 @@ class ResumeCreatorHandler(BaseHandler):
         match llm_model:
             case "groq":
                 logger.info("Using GROQ model for resume creation")
-                resume_segments = call_groq_api(
-                    model="llama-3.3-70b-versatile",
-                    max_tokens=5000,
-                    temperature=0.3,
+                resume_segments = call_structured_groq_api(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    max_tokens=8192,
+                    temperature=0.4,
                     messages=[
                         {
                             "role": "system",
@@ -119,6 +121,7 @@ class ResumeCreatorHandler(BaseHandler):
                         },
                         {"role": "user", "content": user_prompt},
                     ],
+                    schema=ResumeStructure,
                 )
             case "openai":
                 logger.info("Using OpenAI model for resume creation")
@@ -138,9 +141,8 @@ class ResumeCreatorHandler(BaseHandler):
         print(f"Time taken: {time.time() - start_time}")
 
         logger.critical(f"""{resume_segments=}""")
-        json_segments = parse_json_from_llm(resume_segments)
-        logger.critical(f"""{json_segments=}""")
-        send_data_to_callback_url(data=json_segments, callback_url=callback_url)
+        send_data_to_callback_url(
+            data=resume_segments, callback_url=callback_url)
 
 
 # Create a singleton instance
