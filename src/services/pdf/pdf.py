@@ -429,6 +429,44 @@ def _add_open_source_section(pdf, open_source_items, is_modern=False):
     pdf.ln(3)
 
 
+def _add_projects_section(pdf, projects_items, is_modern=False):
+    """Add open source section to the PDF."""
+    if not projects_items:
+        return
+
+    _add_section_header(pdf, "Projects", is_modern)
+    pdf.set_font(pdf.font_family, "", 10)
+
+    if isinstance(projects_items, list):
+        for item in projects_items:
+            if isinstance(item, dict):
+                title_text = _safe_string(item.get("title"))
+                url = _safe_string(item.get("link"))
+
+                if title_text:
+                    pdf.set_font(pdf.font_family, "B", 11)
+                    pdf.cell(0, 6, title_text, 0, 1)
+                if url:
+                    pdf.set_font(pdf.font_family, "", 10)
+                    pdf.cell(0, 6, url, 0, 1)
+                        
+
+                _process_bullet_points(pdf, item.get("description"))
+                pdf.ln(3 if is_modern else 2)
+            elif isinstance(item, str) and item.strip():
+                pdf.cell(
+                    5 if is_modern else 0,
+                    5,
+                    "-" if is_modern else f"- {item.strip()}",
+                    0,
+                    0 if is_modern else 1,
+                )
+                if is_modern:
+                    pdf.cell(0, 5, item.strip(), 0, 1)
+
+    pdf.ln(3)
+
+
 def create_resume(segments, font_family="Times", segment_order=None):
     """Create a resume PDF using the classic template."""
     if not isinstance(segments, dict):
@@ -442,6 +480,7 @@ def create_resume(segments, font_family="Times", segment_order=None):
             "skills",
             "certifications",
             "open_source",
+            'projects',
             "education",
         ]
 
@@ -472,6 +511,8 @@ def create_resume(segments, font_family="Times", segment_order=None):
             )
         elif segment == "open_source" and "open_source" in segments:
             _add_open_source_section(pdf, segments["open_source"], is_modern=False)
+        elif segment == "projects" and "projects" in segments:
+            _add_projects_section(pdf, segments["projects"], is_modern=False)
 
     output_file = generate_file_path()
     pdf.output(output_file)
@@ -489,6 +530,7 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
             "skills",
             "certifications",
             "open_source",
+            'projects',
             "education",
         ]
 
@@ -522,6 +564,8 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
             _add_certifications_section(pdf, segments["certifications"], is_modern=True)
         elif section == "open_source" and "open_source" in segments:
             _add_open_source_section(pdf, segments["open_source"], is_modern=True)
+        elif segment == "projects" and "projects" in segments:
+            _add_projects_section(pdf, segments["projects"], is_modern=True)
 
     output_file = generate_file_path()
     pdf.output(output_file)
