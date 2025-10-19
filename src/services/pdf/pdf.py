@@ -1,5 +1,6 @@
 """PDF generation service."""
 
+import re
 from fpdf import FPDF
 
 from utils.utils import generate_file_path
@@ -31,6 +32,175 @@ def _safe_string(text, default=""):
     return text.strip() if isinstance(text, str) else default
 
 
+def _extract_urls_from_text(text):
+    """Extract URLs from text using regex.
+    
+    Matches:
+    - URLs starting with http:// or https://
+    - URLs starting with www.
+    - Common domain patterns without protocol
+    
+    Returns:
+        list: List of tuples containing (start_pos, end_pos, url, full_url)
+    """
+    if not isinstance(text, str):
+        return []
+    
+    # Pattern to match URLs with various formats
+    url_pattern = r'(?:https?://|www\.)[^\s<>"{}|\\^`\[\]]+(?:[^\s.,;:!?\'")\]}>])'
+    
+    matches = []
+    for match in re.finditer(url_pattern, text):
+        url = match.group()
+        full_url = url if url.startswith(('http://', 'https://')) else f'https://{url}'
+        matches.append((match.start(), match.end(), url, full_url))
+    
+    return matches
+
+
+def _write_text_with_links(pdf, text, width=0, height=5, align='L', ln=0):
+    """Write text with clickable hyperlinks.
+    
+    Args:
+        pdf: PDF object
+        text: Text that may contain URLs
+        width: Cell width (0 = full width)
+        height: Cell height
+        align: Text alignment ('L', 'C', 'R')
+        ln: Line break behavior (0 = to the right, 1 = to the beginning of next line)
+    """
+    if not _safe_string(text):
+        return
+    
+    urls = _extract_urls_from_text(text)
+    
+    if not urls:
+        # No URLs found, write normally
+        pdf.cell(width, height, text, 0, ln, align)
+        return
+    
+    # Save current text color
+    current_color = pdf.text_color
+    
+    # Split text into parts and write each part
+    last_pos = 0
+    x_start = pdf.get_x()
+    
+    for start, end, url_text, full_url in urls:
+        # Write text before URL
+        if start > last_pos:
+            before_text = text[last_pos:start]
+            pdf.cell(pdf.get_string_width(before_text), height, before_text, 0, 0, align)
+        
+        # Write URL with link in blue
+        pdf.set_text_color(0, 102, 204)
+        pdf.cell(pdf.get_string_width(url_text), height, url_text, 0, 0, align, link=full_url)
+        pdf.set_text_color(current_color[0], current_color[1], current_color[2])
+        
+        last_pos = end
+    
+    # Write remaining text after last URL
+    if last_pos < len(text):
+        remaining_text = text[last_pos:]
+        pdf.cell(pdf.get_string_width(remaining_text), height, remaining_text, 0, ln, align)
+    elif ln:
+        pdf.ln()
+
+
+def _multi_cell_with_links(pdf, width, height, text):
+    """Write multi-line text with clickable hyperlinks.
+    
+    Args:
+        pdf: PDF object
+        width: Cell width (0 = available width)
+        height: Line height
+        text: Text that may contain URLs
+    """
+    if not _safe_string(text):
+        return
+    
+    urls = _extract_urls_from_text(text)
+    
+    if not urls:
+        # No URLs found, write normally
+        pdf.multi_cell(width, height, text)
+        return
+    
+    # Save current text color and position
+    current_color = pdf.text_color
+    available_width = width if width > 0 else (pdf.w - pdf.l_margin - pdf.r_margin)
+    
+    # Split text by spaces for word wrapping
+    words = text.split()
+    current_line = ""
+    x_start = pdf.get_x()
+    y_start = pdf.get_y()
+    
+    for word in words:
+        test_line = current_line + (" " if current_line else "") + word
+        test_width = pdf.get_string_width(test_line)
+        
+        if test_width > available_width and current_line:
+            # Write current line
+            _write_line_with_links(pdf, current_line, height, urls, text, current_color)
+            current_line = word
+            pdf.set_x(x_start)
+        else:
+            current_line = test_line
+    
+    # Write remaining line
+    if current_line:
+        _write_line_with_links(pdf, current_line, height, urls, text, current_color)
+
+
+def _write_line_with_links(pdf, line_text, height, urls, full_text, current_color):
+    """Helper function to write a single line with links."""
+    # Find the position of this line in the full text
+    line_start_in_full = full_text.find(line_text)
+    if line_start_in_full == -1:
+        pdf.cell(0, height, line_text, 0, 1)
+        return
+    
+    line_end_in_full = line_start_in_full + len(line_text)
+    
+    # Find URLs that overlap with this line
+    line_urls = [
+        (start - line_start_in_full, end - line_start_in_full, url_text, full_url)
+        for start, end, url_text, full_url in urls
+        if start < line_end_in_full and end > line_start_in_full
+    ]
+    
+    if not line_urls:
+        pdf.cell(0, height, line_text, 0, 1)
+        return
+    
+    # Write line with links
+    last_pos = 0
+    for start, end, url_text, full_url in line_urls:
+        start = max(0, start)
+        end = min(len(line_text), end)
+        
+        # Write text before URL
+        if start > last_pos:
+            before_text = line_text[last_pos:start]
+            pdf.cell(pdf.get_string_width(before_text), height, before_text, 0, 0)
+        
+        # Write URL with link
+        url_in_line = line_text[start:end]
+        pdf.set_text_color(0, 102, 204)
+        pdf.cell(pdf.get_string_width(url_in_line), height, url_in_line, 0, 0, link=full_url)
+        pdf.set_text_color(current_color[0], current_color[1], current_color[2])
+        
+        last_pos = end
+    
+    # Write remaining text
+    if last_pos < len(line_text):
+        remaining_text = line_text[last_pos:]
+        pdf.cell(0, height, remaining_text, 0, 1)
+    else:
+        pdf.ln()
+
+
 def _create_bullet_point(pdf, text, indent=5):
     """Create a bullet point with text."""
     if not _safe_string(text):
@@ -40,8 +210,37 @@ def _create_bullet_point(pdf, text, indent=5):
     pdf.cell(indent, 5, "-", 0, 0)
     available_width = pdf.w - pdf.l_margin - pdf.r_margin - indent
     if available_width > pdf.get_string_width("W"):
-        pdf.multi_cell(available_width, 5, f" {text}")
-        pdf.set_x(pdf.l_margin)
+        # Check if text contains URLs
+        urls = _extract_urls_from_text(text)
+        if urls:
+            # Save position and write text with links
+            current_color = pdf.text_color
+            current_x = pdf.get_x()
+            
+            # Handle multi-line bullet points with URLs
+            words = text.split()
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + (" " if current_line else "") + word
+                test_width = pdf.get_string_width(test_line)
+                
+                if test_width > available_width and current_line:
+                    # Write current line with links
+                    _write_line_with_links(pdf, " " + current_line, 5, urls, text, current_color)
+                    pdf.set_x(pdf.l_margin + indent)
+                    current_line = word
+                else:
+                    current_line = test_line
+            
+            # Write remaining line
+            if current_line:
+                _write_line_with_links(pdf, " " + current_line, 5, urls, text, current_color)
+            
+            pdf.set_x(pdf.l_margin)
+        else:
+            pdf.multi_cell(available_width, 5, f" {text}")
+            pdf.set_x(pdf.l_margin)
     else:
         pdf.ln()
 
@@ -104,7 +303,12 @@ def _process_bullet_points(pdf, description):
         for bullet in descriptions:
             _create_bullet_point(pdf, bullet)
     elif isinstance(description, str) and description.strip():
-        pdf.multi_cell(0, 5, description.strip())
+        # Check if description contains URLs
+        urls = _extract_urls_from_text(description)
+        if urls:
+            _multi_cell_with_links(pdf, 0, 5, description.strip())
+        else:
+            pdf.multi_cell(0, 5, description.strip())
 
 
 def _add_contact_info(pdf, contact_items, separator=" - ", is_modern=False):
@@ -122,7 +326,39 @@ def _add_contact_info(pdf, contact_items, separator=" - ", is_modern=False):
 
     if contact:
         contact_text = separator.join(contact)
-        pdf.cell(0, 5, contact_text, 0, 1, "C")
+        # Check if contact info contains URLs (like LinkedIn, portfolio, etc.)
+        urls = _extract_urls_from_text(contact_text)
+        if urls:
+            # Write contact info with clickable links
+            current_color = pdf.text_color
+            last_pos = 0
+            
+            # Center align - calculate starting position
+            total_width = pdf.get_string_width(contact_text)
+            x_start = (pdf.w - total_width) / 2
+            pdf.set_x(x_start)
+            
+            for start, end, url_text, full_url in urls:
+                # Write text before URL
+                if start > last_pos:
+                    before_text = contact_text[last_pos:start]
+                    pdf.cell(pdf.get_string_width(before_text), 5, before_text, 0, 0, 'C')
+                
+                # Write URL with link in blue
+                pdf.set_text_color(0, 102, 204)
+                pdf.cell(pdf.get_string_width(url_text), 5, url_text, 0, 0, 'C', link=full_url)
+                pdf.set_text_color(current_color[0], current_color[1], current_color[2])
+                
+                last_pos = end
+            
+            # Write remaining text after last URL
+            if last_pos < len(contact_text):
+                remaining_text = contact_text[last_pos:]
+                pdf.cell(pdf.get_string_width(remaining_text), 5, remaining_text, 0, 1, 'C')
+            else:
+                pdf.ln()
+        else:
+            pdf.cell(0, 5, contact_text, 0, 1, "C")
         pdf.ln(5 if not is_modern else 10)
 
 
@@ -158,7 +394,13 @@ def _add_summary_section(pdf, summary, is_modern=False):
     pdf.set_font(
         pdf.font_family, "" if not is_modern else "I", 10 if not is_modern else 11
     )
-    pdf.multi_cell(0, 5, summary.strip())
+    
+    # Check if summary contains URLs
+    urls = _extract_urls_from_text(summary)
+    if urls:
+        _multi_cell_with_links(pdf, 0, 5, summary.strip())
+    else:
+        pdf.multi_cell(0, 5, summary.strip())
     pdf.ln(5)
 
 
@@ -448,7 +690,12 @@ def _add_projects_section(pdf, projects_items, is_modern=False):
                     pdf.cell(0, 6, title_text, 0, 1)
                 if url:
                     pdf.set_font(pdf.font_family, "", 10)
-                    pdf.cell(0, 6, url, 0, 1)
+                    # Make the URL clickable and blue
+                    current_color = pdf.text_color
+                    pdf.set_text_color(0, 102, 204)
+                    full_url = url if url.startswith(('http://', 'https://')) else f'https://{url}'
+                    pdf.cell(0, 6, url, 0, 1, link=full_url)
+                    pdf.set_text_color(current_color[0], current_color[1], current_color[2])
                         
 
                 _process_bullet_points(pdf, item.get("description"))
@@ -609,7 +856,12 @@ def create_cover_letter(text, title, font_family="Times"):
             for line in lines:
                 if isinstance(line, str):
                     available_width = pdf.w - pdf.l_margin - pdf.r_margin
-                    pdf.multi_cell(available_width, 5, line)
+                    # Check if line contains URLs
+                    urls = _extract_urls_from_text(line)
+                    if urls:
+                        _multi_cell_with_links(pdf, available_width, 5, line)
+                    else:
+                        pdf.multi_cell(available_width, 5, line)
         pdf.ln(5)
 
     output_file = generate_file_path()
