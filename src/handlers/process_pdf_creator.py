@@ -49,12 +49,18 @@ class PDFCreatorHandler(BaseHandler):
         title = f"{firstName} {lastName} - {job_title}"
         file_name = f"{firstName} {lastName} - {company_name}"
         root_path = message_body.get("path", "documents")
+        
+        # Extract segment order from message body
+        segment_order = message_body.get("segmentOrder", None)
 
         resume_key = None
         cover_letter_key = None
 
         if message_body.get("resume"):
-            generated_file = create_resume(segments=message_body["resume"])
+            generated_file = create_resume(
+                segments=message_body["resume"],
+                segment_order=segment_order
+            )
             resume_key = f"{root_path}/{clean_title(file_name)}_resume.pdf"
             upload_item(
                 path=generated_file,

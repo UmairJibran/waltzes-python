@@ -564,7 +564,7 @@ def create_modern_resume(segments, font_family="Times", segment_order=None):
             _add_certifications_section(pdf, segments["certifications"], is_modern=True)
         elif section == "open_source" and "open_source" in segments:
             _add_open_source_section(pdf, segments["open_source"], is_modern=True)
-        elif segment == "projects" and "projects" in segments:
+        elif section == "projects" and "projects" in segments:
             _add_projects_section(pdf, segments["projects"], is_modern=True)
 
     output_file = generate_file_path()
