@@ -1,6 +1,7 @@
 """Langchain utilties."""
 
 from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
@@ -156,5 +157,68 @@ def call_structured_anthropic_api(
     llm_anthropic = llm_anthropic.with_structured_output(schema, method="json_mode", strict=True)
 
     completion = llm_anthropic.invoke(messages)
+
+    return completion
+
+
+def call_gemini_api(
+    model="gemini-2.0-flash-exp",
+    max_tokens=500,
+    temperature=0.2,
+    messages=[],
+):
+    """Make a call to Google Gemini API using langchain's interface.
+
+    Args:
+        model (str): The model to use for generation
+        max_tokens (int): Maximum number of tokens to generate
+        temperature (float): Controls randomness in the response
+        messages (list): List of messages to send to Gemini
+
+    Returns:
+        str: The generated content from Gemini
+    """
+    llm_gemini = ChatGoogleGenerativeAI(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=None,
+        max_retries=2,
+    )
+
+    completion = llm_gemini.invoke(messages)
+
+    return completion.content
+
+
+def call_structured_gemini_api(
+    model="gemini-2.0-flash-exp",
+    max_tokens=500,
+    temperature=0.2,
+    messages=[],
+    schema=None,
+):
+    """Make a call to Google Gemini API using langchain's interface with structured output.
+
+    Args:
+        model (str): The model to use for generation
+        max_tokens (int): Maximum number of tokens to generate
+        temperature (float): Controls randomness in the response
+        messages (list): List of messages to send to Gemini
+        schema: The schema to structure the output
+
+    Returns:
+        The structured output from Gemini
+    """
+    llm_gemini = ChatGoogleGenerativeAI(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=None,
+        max_retries=2,
+    )
+    llm_gemini = llm_gemini.with_structured_output(schema, method="json_mode", strict=True)
+
+    completion = llm_gemini.invoke(messages)
 
     return completion
